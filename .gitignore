@@ -1,0 +1,87 @@
+# =========================================
+# General
+# =========================================
+*.log
+*.tmp
+*.swp
+.DS_Store
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# =========================================
+# Environments
+# =========================================
+.env
+*.env
+config/secrets.env
+.venv/
+env/
+venv/
+.ipynb_checkpoints/
+
+# =========================================
+# Airflow
+# =========================================
+airflow/logs/
+airflow/logs/*
+airflow/tmp/
+airflow/unittests.cfg
+*.airflowignore
+
+# =========================================
+# dbt
+# =========================================
+dbt/target/
+dbt/dbt_modules/
+dbt/packages/
+dbt/.user.yml
+
+# =========================================
+# Jupyter & Notebooks
+# =========================================
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# =========================================
+# Docker & Build Artifacts
+# =========================================
+*.pid
+*.sock
+docker/*.tar
+*.bak
+*.old
+*.orig
+
+# =========================================
+# Python & Testing
+# =========================================
+.coverage
+pytest_cache/
+.tox/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+# =========================================
+# IDE & Editor
+# =========================================
+.vscode/
+.idea/
+*.iml
+
+# =========================================
+# Data Files
+# =========================================
+data/
+datasets/
+*.csv
+*.parquet
+*.json
+
+# =========================================
+# Other generated files
+# =========================================
+ml/models/
+scripts/__pycache__/
+
