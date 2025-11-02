@@ -1,0 +1,17 @@
+# Data processing
+pandas
+numpy
+
+# Financial data
+yfinance
+
+# Requests
+requests
+
+# Database
+psycopg2-binary
+sqlalchemy
+
+# Testing
+pytest
+
