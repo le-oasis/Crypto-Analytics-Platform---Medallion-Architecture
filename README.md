@@ -1,6 +1,6 @@
-# 🚀 Crypto Analytics Platform - Medallion Architecture
+# Crypto Analytics Platform - Medallion Architecture
 
-## 📊 Project Overview
+##  Project Overview
 
 A production-grade cryptocurrency analytics platform implementing the **Medallion Architecture** (Bronze → Silver → Gold) with orchestrated data pipelines, ML-based price prediction, and interactive visualizations.
 
@@ -609,9 +609,6 @@ class DataQualitySensor(BaseSensorOperator):
 
 ---
 
-## 📄 License
-
-MIT License - see LICENSE file for details
 
 ---
 
