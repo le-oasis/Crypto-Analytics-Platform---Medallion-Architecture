@@ -90,21 +90,5 @@ scripts/__pycache__/
 # =========================================
 # Personal Documentation (not for public repo)
 # =========================================
-ARCHITECTURE.md
-QUICK_START.md
-QUICK_START_SIMPLE.md
-STARTUP_GUIDE.md
-FIXES_APPLIED.md
-SUCCESS_SUMMARY.md
-DATA_STRUCTURE.md
-AUTOMATED_SETUP.md
-AUTOMATION_SUMMARY.md
-PRE_COMMIT_CHECKLIST.md
-PUSH_SUMMARY.txt
-HEALTH_CHECK_REPORT.txt
-
-# =========================================
-# Build & Development Tools
-# =========================================
-Makefile
+personal_docs/
 

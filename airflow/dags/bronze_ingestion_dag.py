@@ -1,7 +1,7 @@
 """
 Bronze Layer Ingestion DAG (Yahoo Finance Only)
 Fetches raw cryptocurrency data from Yahoo Finance and loads into the bronze layer.
-Runs every 15 minutes to capture near real-time price data.
+Runs every hour to capture real-time price data while respecting API rate limits.
 """
 
 from datetime import datetime, timedelta
@@ -28,7 +28,7 @@ dag = DAG(
     'bronze_yahoo_ingestion_dag',
     default_args=default_args,
     description='Fetch and load Yahoo Finance crypto data into the Bronze layer',
-    schedule_interval='*/15 * * * *',  # every 15 minutes
+    schedule_interval='@hourly',  # every hour
     catchup=False,
     max_active_runs=1,
     tags=['bronze', 'yahoo_finance', 'crypto'],
@@ -54,7 +54,7 @@ def fetch_yahoo_finance_data(**context):
     for symbol in CRYPTO_SYMBOLS:
         try:
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period='1d', interval='15m')
+            df = ticker.history(period='1d', interval='1h')
 
             if not df.empty:
                 if isinstance(df.columns, pd.MultiIndex):
@@ -166,23 +166,23 @@ def check_data_freshness(**context):
     # Use Airflow's default postgres connection
     pg_hook = PostgresHook(postgres_conn_id='postgres_default')
     query = """
-        SELECT 
+        SELECT
             MAX(timestamp) as latest_timestamp,
             COUNT(*) as record_count,
             COUNT(DISTINCT symbol) as symbol_count
         FROM bronze.raw_crypto_prices
-        WHERE timestamp > NOW() - INTERVAL '1 hour';
+        WHERE timestamp > NOW() - INTERVAL '2 hours';
     """
 
     result = pg_hook.get_first(query)
     if result:
         latest_timestamp, record_count, symbol_count = result
         print(f"✓ Latest timestamp: {latest_timestamp}")
-        print(f"✓ Rows (1h): {record_count}, Unique symbols: {symbol_count}")
+        print(f"✓ Rows (2h): {record_count}, Unique symbols: {symbol_count}")
 
         if latest_timestamp:
             age_min = (datetime.utcnow() - latest_timestamp).total_seconds() / 60
-            if age_min > 30:
+            if age_min > 90:
                 print(f"⚠ Data is stale ({age_min:.1f} minutes old)")
         return True
     else:
