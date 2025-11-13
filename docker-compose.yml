@@ -118,6 +118,20 @@ services:
       - postgres
     command: ["sleep", "infinity"]
 
+  # Streamlit Dashboard
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/streamlit.Dockerfile
+    container_name: crypto-streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit:/app
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
 volumes:
   postgres-db-volume:
 
