@@ -13,17 +13,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PIP_DEFAULT_TIMEOUT=200 \
     PIP_RETRIES=10
 
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first (for better caching)
+COPY ./streamlit/requirements.txt /app/requirements.txt
+
 # Install Python dependencies
 RUN pip install --no-cache-dir \
     --timeout=200 \
     --retries=10 \
-    streamlit==1.28.0 \
-    plotly==5.17.0 \
-    pandas==2.1.0 \
-    psycopg2-binary==2.9.9
+    -r requirements.txt
 
 # Copy application code
-WORKDIR /app
 COPY ./streamlit /app
 
 # Expose Streamlit port
