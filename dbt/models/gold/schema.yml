@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: gold_daily_prices
+    description: >
+      Daily aggregated cryptocurrency prices with OHLCV data and calculated metrics.
+      Aggregates hourly data into clean daily summaries for portfolio analysis.
+    columns:
+      - name: date
+        description: "Trading date (no timestamp)"
+        tests:
+          - not_null
+
+      - name: symbol
+        description: "Cryptocurrency symbol (e.g., BTC-USD)"
+        tests:
+          - not_null
+
+      - name: open
+        description: "Opening price for the day (first price)"
+        tests:
+          - not_null
+
+      - name: high
+        description: "Highest price during the day"
+        tests:
+          - not_null
+
+      - name: low
+        description: "Lowest price during the day"
+        tests:
+          - not_null
+
+      - name: close
+        description: "Closing price for the day (last price)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+      - name: volume
+        description: "Total trading volume for the day"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+
+      - name: price_change_pct
+        description: "Percentage change from open to close"
+
+      - name: daily_return_pct
+        description: "Daily return vs previous day's close"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -100
+              max_value: 1000
+              inclusive: true
+
+      - name: log_return
+        description: "Logarithmic return for statistical analysis"
+
+      - name: dbt_updated_at
+        description: "Timestamp when this record was last updated by dbt"
+        tests:
+          - not_null
