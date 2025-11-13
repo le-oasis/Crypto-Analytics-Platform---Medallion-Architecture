@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: silver_crypto_prices_cleaned
+    description: "Cleaned and validated cryptocurrency prices with calculated fields"
+
+    columns:
+      - name: timestamp
+        description: "Price timestamp (UTC)"
+        tests:
+          - not_null
+          - unique:
+              config:
+                where: "symbol = 'BTC-USD'"
+
+      - name: symbol
+        description: "Cryptocurrency symbol"
+        tests:
+          - not_null
+
+      - name: close
+        description: "Closing price (validated)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: false
+
+      - name: open
+        description: "Opening price (validated, nulls filled)"
+        tests:
+          - not_null
+
+      - name: high
+        description: "High price (validated)"
+        tests:
+          - not_null
+
+      - name: low
+        description: "Low price (validated)"
+        tests:
+          - not_null
+
+      - name: volume
+        description: "Trading volume (validated, 0 if missing)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+
+      - name: log_return
+        description: "Logarithmic return (for statistical analysis)"
+
+      - name: simple_return_pct
+        description: "Simple percentage return"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -100
+              max_value: 100
+              inclusive: true
+
+      - name: spread
+        description: "High-Low spread"
+
+      - name: source
+        description: "Data source"
+        tests:
+          - not_null
+
+      - name: dbt_updated_at
+        description: "When this record was last transformed by dbt"
+        tests:
+          - not_null

@@ -1,0 +1,61 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: "Raw cryptocurrency data from various APIs"
+    database: airflow
+    schema: bronze
+
+    tables:
+      - name: raw_crypto_prices
+        description: "Raw OHLCV price data from Yahoo Finance"
+        columns:
+          - name: id
+            description: "Auto-incrementing primary key"
+            tests:
+              - unique
+              - not_null
+
+          - name: timestamp
+            description: "Price timestamp (UTC)"
+            tests:
+              - not_null
+
+          - name: symbol
+            description: "Cryptocurrency symbol (e.g., BTC-USD)"
+            tests:
+              - not_null
+
+          - name: close
+            description: "Closing price"
+            tests:
+              - not_null
+              - dbt_utils.accepted_range:
+                  min_value: 0
+                  inclusive: false
+
+          - name: volume
+            description: "Trading volume"
+            tests:
+              - dbt_utils.accepted_range:
+                  min_value: 0
+                  inclusive: true
+
+          - name: source
+            description: "Data source API"
+            tests:
+              - accepted_values:
+                  values: ['yahoo_finance', 'coingecko', 'binance']
+
+          - name: ingestion_timestamp
+            description: "When the data was ingested"
+            tests:
+              - not_null
+
+        # Freshness check - data should be less than 1 hour old
+        freshness:
+          warn_after: {count: 30, period: minute}
+          error_after: {count: 60, period: minute}
+
+        # Loaded at - timestamp field for freshness checks
+        loaded_at_field: ingestion_timestamp

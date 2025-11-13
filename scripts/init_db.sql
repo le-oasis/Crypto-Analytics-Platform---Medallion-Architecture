@@ -1,9 +1,11 @@
 -- ==========================================================
--- 🪣 Crypto Analytics Platform - Database Initialization (Yahoo Finance Only)
+-- 🪣 Crypto Analytics Platform - Database Initialization
 -- Initializes schemas and bronze tables for Yahoo Finance ingestion
+-- This runs automatically when Postgres container starts
 -- ==========================================================
 
 -- 1️⃣ Create base schemas (Bronze = raw, Silver = cleaned, Gold = aggregated)
+-- These will be created in the 'airflow' database
 CREATE SCHEMA IF NOT EXISTS bronze;
 CREATE SCHEMA IF NOT EXISTS silver;
 CREATE SCHEMA IF NOT EXISTS gold;

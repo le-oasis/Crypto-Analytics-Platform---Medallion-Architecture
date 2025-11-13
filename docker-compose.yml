@@ -1,172 +1,108 @@
+version: '3.8'
 
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: docker/airflow.Dockerfile
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    # Auto-create postgres_default connection
+    AIRFLOW_CONN_POSTGRES_DEFAULT: 'postgresql://airflow:airflow@postgres:5432/airflow'
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data
+    - ./dbt:/opt/airflow/dbt
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
 
 services:
-  # PostgreSQL Database (Bronze, Silver, Gold layers)
   postgres:
     image: postgres:14
     container_name: crypto-postgres
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: crypto_analytics
+      POSTGRES_DB: airflow
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres-db-volume:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 10s
-      timeout: 5s
       retries: 5
+      start_period: 5s
+    restart: always
 
-  # Redis (Airflow message broker & caching)
-  redis:
-    image: redis:7-alpine
-    container_name: crypto-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Airflow Webserver
   airflow-webserver:
-    build:
-      context: .
-      dockerfile: docker/airflow.Dockerfile
+    <<: *airflow-common
     container_name: crypto-airflow-webserver
     command: webserver
-    env_file:
-      - ./config/secrets.env
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
-      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
-      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
-      - AIRFLOW__WEBSERVER__SECRET_KEY=supersecretkey
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
-      - ./src:/opt/airflow/src
-      - ./ml:/opt/airflow/ml
-      - ./config:/opt/airflow/config
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
-  # Airflow Scheduler
   airflow-scheduler:
-    build:
-      context: .
-      dockerfile: docker/airflow.Dockerfile
+    <<: *airflow-common
     container_name: crypto-airflow-scheduler
     command: scheduler
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
-      - AIRFLOW__CORE__FERNET_KEY=''
-      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
-      - ./src:/opt/airflow/src
-      - ./ml:/opt/airflow/ml
-      - ./config:/opt/airflow/config
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-
-  # Airflow Worker
-  airflow-worker:
-    build:
-      context: .
-      dockerfile: docker/airflow.Dockerfile
-    container_name: crypto-airflow-worker
-    command: celery worker
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
-      - AIRFLOW__CORE__FERNET_KEY=''
-      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
-      - ./src:/opt/airflow/src
-      - ./ml:/opt/airflow/ml
-      - ./config:/opt/airflow/config
+      retries: 5
+      start_period: 30s
+    restart: always
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "celery", "--app", "airflow.executors.celery_executor.app", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
-  # Airflow Init (run migrations)
   airflow-init:
-    build:
-      context: .
-      dockerfile: docker/airflow.Dockerfile
+    <<: *airflow-common
     container_name: crypto-airflow-init
-    command: >
-      bash -c "
-        airflow db init &&
-        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin
-      "
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /sources/airflow/logs /sources/airflow/dags /sources/airflow/plugins /sources/data /sources/dbt
+        chown -R "${AIRFLOW_UID:-50000}:0" /sources/airflow/logs /sources/airflow/dags /sources/airflow/plugins /sources/data /sources/dbt
+        exec /entrypoint airflow version
     environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/crypto_analytics
-      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
-      - AIRFLOW__CORE__FERNET_KEY=''
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    user: "0:0"
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/logs:/opt/airflow/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: "no"
+      - .:/sources
 
-  # dbt Container (for running transformations)
+  # dbt Container
   dbt:
     build:
       context: .
@@ -180,137 +116,10 @@ services:
       - ./dbt/profiles.yml:/root/.dbt/profiles.yml
     depends_on:
       - postgres
-    command: ["sleep", "infinity"]  # Keep container running for exec commands
-
-  # MLflow Tracking Server
-  mlflow:
-    build:
-      context: .
-      dockerfile: docker/mlflow.Dockerfile
-    container_name: crypto-mlflow
-    command: >
-      mlflow server
-      --backend-store-uri postgresql://airflow:airflow@postgres/mlflow
-      --default-artifact-root /mlflow/artifacts
-      --host 0.0.0.0
-      --port 5000
-    environment:
-      - AWS_ACCESS_KEY_ID=minio
-      - AWS_SECRET_ACCESS_KEY=minio123
-    volumes:
-      - mlflow_data:/mlflow
-    ports:
-      - "5000:5000"
-    depends_on:
-      - postgres
-
-  # Streamlit Dashboard
-  streamlit:
-    build:
-      context: .
-      dockerfile: docker/streamlit.Dockerfile
-    container_name: crypto-streamlit
-    environment:
-      - DATABASE_URL=postgresql://airflow:airflow@postgres/crypto_analytics
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-    volumes:
-      - ./streamlit:/app
-      - ./src:/app/src
-    ports:
-      - "8501:8501"
-    depends_on:
-      - postgres
-      - mlflow
-    command: ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-
-  # Jupyter Notebook (for experimentation)
-  jupyter:
-    build:
-      context: .
-      dockerfile: docker/jupyter.Dockerfile
-    container_name: crypto-jupyter
-    environment:
-      - JUPYTER_ENABLE_LAB=yes
-      - DATABASE_URL=postgresql://airflow:airflow@postgres/crypto_analytics
-    volumes:
-      - ./notebooks:/notebooks
-      - ./src:/notebooks/src
-      - ./ml:/notebooks/ml
-      - ./data:/notebooks/data
-    ports:
-      - "8888:8888"
-    depends_on:
-      - postgres
-    command: ["jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
-
-  # MinIO (S3-compatible object storage for large files)
-  minio:
-    image: minio/minio:latest
-    container_name: crypto-minio
-    environment:
-      - MINIO_ROOT_USER=minio
-      - MINIO_ROOT_PASSWORD=minio123
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    command: server /data --console-address ":9001"
-
-  # Metabase (Optional: Self-service BI tool)
-  metabase:
-    image: metabase/metabase:latest
-    container_name: crypto-metabase
-    environment:
-      - MB_DB_TYPE=postgres
-      - MB_DB_DBNAME=metabase
-      - MB_DB_PORT=5432
-      - MB_DB_USER=airflow
-      - MB_DB_PASS=airflow
-      - MB_DB_HOST=postgres
-    ports:
-      - "3000:3000"
-    depends_on:
-      - postgres
-    volumes:
-      - metabase_data:/metabase-data
-
-  # Prometheus (Optional: Monitoring)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: crypto-prometheus
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-
-  # Grafana (Optional: Monitoring dashboards)
-  grafana:
-    image: grafana/grafana:latest
-    container_name: crypto-grafana
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
-    ports:
-      - "3001:3000"
-    depends_on:
-      - prometheus
+    command: ["sleep", "infinity"]
 
 volumes:
-  postgres_data:
-  mlflow_data:
-  minio_data:
-  metabase_data:
-  prometheus_data:
-  grafana_data:
+  postgres-db-volume:
 
 networks:
   default:

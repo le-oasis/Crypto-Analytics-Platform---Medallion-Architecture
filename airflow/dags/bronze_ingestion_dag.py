@@ -126,6 +126,8 @@ def load_to_bronze(**context):
     yahoo_data_json = ti.xcom_pull(task_ids='fetch_yahoo_finance_data', key='yahoo_finance_data')
 
     df = pd.read_json(yahoo_data_json)
+
+    # Use Airflow's default postgres connection (points to airflow database)
     pg_hook = PostgresHook(postgres_conn_id='postgres_default')
 
     insert_query = """
@@ -161,6 +163,7 @@ def load_to_bronze(**context):
 # Task 4: Check recent freshness
 # ==========================================================
 def check_data_freshness(**context):
+    # Use Airflow's default postgres connection
     pg_hook = PostgresHook(postgres_conn_id='postgres_default')
     query = """
         SELECT 
